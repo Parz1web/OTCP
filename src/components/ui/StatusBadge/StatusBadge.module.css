@@ -1,0 +1,42 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+}
+
+/* Цвета статусов */
+.normal {
+  background-color: var(--status-normal);
+  color: white;
+}
+
+.warning {
+  background-color: var(--status-warning);
+  color: white;
+}
+
+.critical {
+  background-color: var(--status-critical);
+  color: white;
+}
+
+.maintenance {
+  background-color: var(--status-maintenance);
+  color: white;
+}
+
+/* Размеры */
+.small {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+}
+
+.medium {
+  font-size: 0.875rem;
+}

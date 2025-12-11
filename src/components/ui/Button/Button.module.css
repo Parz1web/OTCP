@@ -1,0 +1,116 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+
+  /* Явно задаём стили, чтобы перекрыть глобальные */
+  background-color: var(--color-primary);
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Варианты - ДОБАВЛЯЕМ ЯВНЫЙ БАЗОВЫЙ СТИЛЬ ДЛЯ КАЖДОГО */
+.variant-primary {
+  background-color: var(--color-primary) !important;
+  color: white !important;
+  border: 1px solid var(--color-primary) !important;
+}
+
+.variant-primary:hover:not(:disabled) {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+.variant-secondary {
+  background-color: var(--color-secondary) !important;
+  color: white !important;
+  border: 1px solid var(--color-secondary) !important;
+}
+
+.variant-secondary:hover:not(:disabled) {
+  background-color: #059669 !important;
+  border-color: #059669 !important;
+}
+
+.variant-danger {
+  background-color: var(--color-danger) !important;
+  color: white !important;
+  border: 1px solid var(--color-danger) !important;
+}
+
+.variant-danger:hover:not(:disabled) {
+  background-color: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
+.variant-warning {
+  background-color: var(--color-warning) !important;
+  color: white !important;
+  border: 1px solid var(--color-warning) !important;
+}
+
+.variant-warning:hover:not(:disabled) {
+  background-color: #d97706 !important;
+  border-color: #d97706 !important;
+}
+
+.variant-ghost {
+  background-color: transparent !important;
+  color: var(--color-primary) !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.variant-ghost:hover:not(:disabled) {
+  background-color: #f9fafb !important;
+  border-color: #d1d5db !important;
+}
+
+/* Размеры */
+.size-small {
+  padding: 0.375rem 0.75rem !important;
+  font-size: 0.875rem !important;
+}
+
+.size-medium {
+  padding: 0.5rem 1rem !important;
+  font-size: 1rem !important;
+}
+
+.size-large {
+  padding: 0.75rem 1.5rem !important;
+  font-size: 1.125rem !important;
+}
+
+/* Полная ширина */
+.fullWidth {
+  width: 100% !important;
+}
+
+/* Спиннер загрузки */
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
