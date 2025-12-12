@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import type { Equipment, Robot, RobotRoute } from "../../../data/types";
 import Card from "../../ui/Card";
 import Button from "../../ui/Button";
@@ -48,73 +48,128 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [robotLog, setRobotLog] = useState<string[]>(["Робот готов к работе"]);
 
+  // Используем useRef для хранения состояния, которое не должно вызывать ререндер
+  const currentTargetIndexRef = useRef(0);
+  const isScanningRef = useRef(false);
+  const animationFrameRef = useRef<number | null>(null);
+
   // Текущий выбранный маршрут
   const currentRoute = useMemo(
     () => routes.find((route) => route.id === selectedRouteId) || null,
     [routes, selectedRouteId]
   );
 
-  // Симуляция движения робота
+  // Функция для добавления записей в лог
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setRobotLog((prev) => [`[${timestamp}] ${message}`, ...prev.slice(0, 10)]);
+  };
+
+  // Сброс результатов при смене маршрута
   useEffect(() => {
-    if (!isRobotMoving || !currentRoute) return;
+    if (currentRoute) {
+      setScanResults([]);
+      setScanProgress({});
+      currentTargetIndexRef.current = 0;
+      isScanningRef.current = false;
+      addLog(`Выбран маршрут: ${currentRoute.name}`);
+    }
+  }, [currentRoute?.id]);
 
-    let animationFrame: number;
-    let currentTargetIndex = 0;
+  // Функция для расчета статистики
+  const calculateStatistics = () => {
+    if (
+      !currentRoute ||
+      !currentRoute.points ||
+      currentRoute.points.length === 0
+    ) {
+      return {
+        success: 0,
+        failed: 0,
+        progress: 0,
+        total: 0,
+        scanned: 0,
+      };
+    }
+
+    const success = scanResults.filter((r) => r.success).length;
+    const failed = scanResults.filter((r) => !r.success).length;
+    const scanned = scanResults.length;
+    const total = currentRoute.points.length;
+
+    // Защита от всех возможных ошибок расчета
+    let progress = 0;
+    if (total > 0 && scanned >= 0) {
+      const rawProgress = (scanned / total) * 100;
+      progress = Math.min(100, Math.max(0, Math.round(rawProgress)));
+    }
+
+    return { success, failed, progress, total, scanned };
+  };
+
+  const statistics = calculateStatistics();
+
+  // Симуляция NFC сканирования
+  const simulateNFCScan = (equipmentId: string): Promise<ScanResult> => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const eq = equipment.find((e) => e.id === equipmentId);
+        const success = Math.random() > 0.1; // 90% успешных сканирований
+
+        const result: ScanResult = {
+          equipmentId,
+          success,
+          timestamp: Date.now(),
+          data: eq
+            ? {
+                vibration:
+                  eq.parameters.vibration + (Math.random() - 0.5) * 0.5,
+                temperature:
+                  eq.parameters.temperature + (Math.random() - 0.5) * 2,
+                pressure: eq.parameters.pressure + (Math.random() - 0.5) * 0.3,
+              }
+            : undefined,
+        };
+
+        resolve(result);
+      }, 2000); // Увеличил время сканирования до 2 секунд
+    });
+  };
+
+  // Симуляция движения робота - ИСПРАВЛЕННАЯ ЛОГИКА
+  useEffect(() => {
+    if (!isRobotMoving || !currentRoute) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      return;
+    }
+
     const speed = 2;
-
-    const addLog = (message: string) => {
-      const timestamp = new Date().toLocaleTimeString();
-      setRobotLog((prev) => [
-        `[${timestamp}] ${message}`,
-        ...prev.slice(0, 10),
-      ]);
-    };
-
-    const simulateNFCScan = (equipmentId: string): Promise<ScanResult> => {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          const eq = equipment.find((e) => e.id === equipmentId);
-          const success = Math.random() > 0.1; // 90% успешных сканирований
-
-          const result: ScanResult = {
-            equipmentId,
-            success,
-            timestamp: Date.now(),
-            data: eq
-              ? {
-                  vibration:
-                    eq.parameters.vibration + (Math.random() - 0.5) * 0.5,
-                  temperature:
-                    eq.parameters.temperature + (Math.random() - 0.5) * 2,
-                  pressure:
-                    eq.parameters.pressure + (Math.random() - 0.5) * 0.3,
-                }
-              : undefined,
-          };
-
-          resolve(result);
-        }, 1500);
-      });
-    };
+    const scanDistance = 15; // Дистанция для начала сканирования
 
     const moveRobot = async () => {
-      if (currentTargetIndex >= currentRoute.points.length) {
+      // Проверяем, завершили ли мы маршрут
+      if (currentTargetIndexRef.current >= currentRoute.points.length) {
         setIsRobotMoving(false);
         addLog("✅ Маршрут успешно завершен");
         return;
       }
 
-      const currentPoint = currentRoute.points[currentTargetIndex];
+      const currentPoint = currentRoute.points[currentTargetIndexRef.current];
       const targetEquipment = equipment.find(
         (eq) => eq.id === currentPoint.equipmentId
       );
 
       if (!targetEquipment) {
         addLog(
-          `⚠️ Оборудование не найдено для точки ${currentTargetIndex + 1}`
+          `⚠️ Оборудование не найдено для точки ${
+            currentTargetIndexRef.current + 1
+          }`
         );
-        currentTargetIndex++;
-        animationFrame = requestAnimationFrame(moveRobot);
+        currentTargetIndexRef.current++;
+        animationFrameRef.current = requestAnimationFrame(moveRobot);
         return;
       }
 
@@ -123,20 +178,39 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
       const dy = targetPos.y - robotPosition.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      if (distance < 10) {
-        // Робот достиг цели - начинаем сканирование
-        if (!scanProgress[targetEquipment.id]) {
+      // Если мы уже сканируем это оборудование - ждем завершения
+      if (isScanningRef.current) {
+        animationFrameRef.current = requestAnimationFrame(moveRobot);
+        return;
+      }
+
+      // Если робот достаточно близко к цели
+      if (distance < scanDistance) {
+        // Начинаем сканирование, если еще не начали
+        if (!isScanningRef.current && !scanProgress[targetEquipment.id]) {
+          isScanningRef.current = true;
+
+          // Устанавливаем прогресс сканирования
+          setScanProgress((prev) => ({
+            ...prev,
+            [targetEquipment.id]: 0,
+          }));
+
           addLog(`📡 Начато сканирование: ${targetEquipment.name}`);
-        }
 
-        const newProgress = (scanProgress[targetEquipment.id] || 0) + 5;
-        setScanProgress((prev) => ({
-          ...prev,
-          [targetEquipment.id]: Math.min(newProgress, 100),
-        }));
+          // Запускаем прогресс сканирования
+          const scanInterval = setInterval(() => {
+            setScanProgress((prev) => {
+              const newProgress = (prev[targetEquipment.id] || 0) + 10;
+              if (newProgress >= 100) {
+                clearInterval(scanInterval);
+                return { ...prev, [targetEquipment.id]: 100 };
+              }
+              return { ...prev, [targetEquipment.id]: newProgress };
+            });
+          }, 200); // Обновляем прогресс каждые 200мс
 
-        if (newProgress >= 100) {
-          // Сканирование завершено
+          // Симулируем сканирование
           try {
             const result = await simulateNFCScan(targetEquipment.id);
             setScanResults((prev) => [...prev, result]);
@@ -150,8 +224,14 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
             addLog(`⚠️ Ошибка при сканировании: ${targetEquipment.name}`);
           }
 
-          setScanProgress((prev) => ({ ...prev, [targetEquipment.id]: 0 }));
-          currentTargetIndex++;
+          // Завершаем сканирование и переходим к следующей точке
+          isScanningRef.current = false;
+          currentTargetIndexRef.current++;
+
+          // Сбрасываем прогресс сканирования для этого оборудования
+          setTimeout(() => {
+            setScanProgress((prev) => ({ ...prev, [targetEquipment.id]: 0 }));
+          }, 500);
         }
       } else {
         // Двигаем робота к цели
@@ -161,13 +241,23 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
         }));
       }
 
-      animationFrame = requestAnimationFrame(moveRobot);
+      animationFrameRef.current = requestAnimationFrame(moveRobot);
     };
 
-    addLog("🤖 Робот начал выполнение маршрута");
-    animationFrame = requestAnimationFrame(moveRobot);
-    return () => cancelAnimationFrame(animationFrame);
-  }, [isRobotMoving, robotPosition, equipment, currentRoute, scanProgress]);
+    // Начинаем движение
+    if (!animationFrameRef.current) {
+      // addLog("🤖 Робот начал выполнение маршрута");
+      animationFrameRef.current = requestAnimationFrame(moveRobot);
+    }
+
+    // Очистка при размонтировании
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [isRobotMoving, robotPosition, equipment, currentRoute]);
 
   // Функции управления
   const handleStartRobot = () => {
@@ -176,9 +266,12 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
       return;
     }
 
-    // Сброс предыдущих результатов
+    // Сброс состояния
     setScanResults([]);
     setScanProgress({});
+    currentTargetIndexRef.current = 0;
+    isScanningRef.current = false;
+
     addLog(`🚀 Запуск робота по маршруту: ${currentRoute.name}`);
 
     // Установка начальной позиции робота
@@ -198,11 +291,21 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
 
   const handleStopRobot = () => {
     setIsRobotMoving(false);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    isScanningRef.current = false;
     addLog("⏸️ Робот остановлен пользователем");
   };
 
   const handlePauseRobot = () => {
     setIsRobotMoving(false);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    isScanningRef.current = false;
     addLog("⏸️ Робот приостановлен");
   };
 
@@ -214,10 +317,6 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
   };
 
   // Вспомогательные функции
-  const getEquipmentById = (id: string) => {
-    return equipment.find((eq) => eq.id === id);
-  };
-
   const getScanStatus = (equipmentId: string) => {
     const result = scanResults.find((r) => r.equipmentId === equipmentId);
     if (result) {
@@ -233,19 +332,6 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
     );
   };
 
-  const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setRobotLog((prev) => [`[${timestamp}] ${message}`, ...prev.slice(0, 10)]);
-  };
-
-  // Статистика
-  const successfulScans = scanResults.filter((r) => r.success).length;
-  const failedScans = scanResults.filter((r) => !r.success).length;
-  const progressPercent =
-    currentRoute && currentRoute.points.length > 0
-      ? Math.round((scanResults.length / currentRoute.points.length) * 100)
-      : 0;
-
   return (
     <Card padding="large" className={styles.factoryMap}>
       <div className={styles.header}>
@@ -259,10 +345,6 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
               onChange={(e) => {
                 const routeId = e.target.value;
                 setSelectedRouteId(routeId);
-                const route = routes.find((r) => r.id === routeId);
-                if (route) {
-                  addLog(`Выбран маршрут: ${route.name}`);
-                }
               }}
               className={styles.routeSelect}
               disabled={isRobotMoving}
@@ -295,7 +377,7 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
             </div>
             <div className={styles.stat}>
               <span className={styles.scanCounter}>
-                📡 {successfulScans}/{currentRoute?.points.length || 0}
+                📡 {statistics.success}/{currentRoute?.points.length || 0}
               </span>
             </div>
           </div>
@@ -400,7 +482,7 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
                         />
                       </div>
                       <span className={styles.scanText}>
-                        NFC сканирование...
+                        NFC сканирование... {scanProgressValue}%
                       </span>
                     </div>
                   )}
@@ -442,16 +524,19 @@ const FactoryMap: React.FC<FactoryMapProps> = ({
             </h3>
             <div className={styles.statsGrid}>
               <div className={styles.statCard}>
-                <div className={styles.statValue}>{successfulScans}</div>
+                <div className={styles.statValue}>{statistics.success}</div>
                 <div className={styles.statLabel}>Успешных сканирований</div>
               </div>
               <div className={styles.statCard}>
-                <div className={styles.statValue}>{failedScans}</div>
+                <div className={styles.statValue}>{statistics.failed}</div>
                 <div className={styles.statLabel}>Ошибок сканирования</div>
               </div>
               <div className={styles.statCard}>
-                <div className={styles.statValue}>{progressPercent}%</div>
+                <div className={styles.statValue}>{statistics.progress}%</div>
                 <div className={styles.statLabel}>Прогресс маршрута</div>
+                <div className={styles.progressSubtext}>
+                  {statistics.scanned}/{statistics.total} точек
+                </div>
               </div>
               <div className={styles.statCard}>
                 <div className={styles.statValue}>

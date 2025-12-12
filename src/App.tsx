@@ -13,6 +13,7 @@ import {
   mockRoutes,
 } from "./data/mockData";
 import type {
+  MaintenanceTask,
   Equipment,
   EquipmentStatus,
   Notification,
@@ -34,6 +35,9 @@ function App() {
   >("map");
   const [selectedRoute, setSelectedRoute] = useState<RobotRoute | null>(
     mockRoutes[0] || null
+  );
+  const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceTask[]>(
+    []
   );
 
   // Выбранное оборудование
@@ -153,6 +157,31 @@ function App() {
       alert("📭 Нет новых уведомлений");
     }
   };
+  const handleCreateMaintenanceTask = (
+    taskData: Omit<MaintenanceTask, "id" | "createdAt">
+  ) => {
+    const newTask: MaintenanceTask = {
+      ...taskData,
+      id: `task-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    setMaintenanceTasks((prev) => [...prev, newTask]);
+
+    // Также добавляем уведомление
+    const newNotification: Notification = {
+      id: `notif-task-${Date.now()}`,
+      type: "info" as const,
+      title: "Создано задание на ТО",
+      message: `Создано задание на ТО для ${taskData.equipmentName}`,
+      timestamp: new Date().toISOString(),
+      equipmentId: taskData.equipmentId,
+      read: false,
+      priority: taskData.priority,
+    };
+
+    setNotifications((prev) => [newNotification, ...prev]);
+  };
 
   // Рендеринг активной вьюшки
   const renderActiveView = () => {
@@ -175,6 +204,24 @@ function App() {
           />
         );
 
+      case "map":
+        return selectedEquipment ? (
+          <EquipmentCard
+            equipment={selectedEquipment}
+            onClose={handleCloseEquipmentCard}
+            onSimulateAnomaly={() =>
+              handleSimulateAnomaly(selectedEquipment.id)
+            }
+            onCreateMaintenanceTask={handleCreateMaintenanceTask} // ← ДОБАВЬТЕ ЭТО
+          />
+        ) : (
+          <FactoryMap
+            equipment={equipment}
+            robot={robot}
+            routes={routes}
+            onEquipmentClick={handleEquipmentClick}
+          />
+        );
       case "planning":
         return (
           <div className="planning-view">

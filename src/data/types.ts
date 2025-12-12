@@ -84,11 +84,40 @@ export interface Notification {
   priority: "low" | "medium" | "high";
 }
 
-// Контекст и состояния
+export interface MaintenanceTask {
+  id: string;
+  equipmentId: string;
+  equipmentName: string;
+  type: "preventive" | "corrective" | "emergency";
+  priority: "low" | "medium" | "high";
+  scheduledDate: string; // ISO строка
+  assignedTo?: string; // ID инженера
+  status: "pending" | "in_progress" | "completed" | "cancelled";
+  description: string;
+  createdAt: string;
+}
+
+// Элемент истории оборудования
+export interface EquipmentHistoryItem {
+  id: string;
+  equipmentId: string;
+  timestamp: string;
+  type: "parameter_update" | "maintenance" | "scan" | "anomaly";
+  parameters?: {
+    vibration: number;
+    temperature: number;
+    pressure: number;
+  };
+  status: EquipmentStatus;
+  notes?: string;
+}
+
+// Расширяем AppState для хранения заданий
 export interface AppState {
   equipment: Equipment[];
   robots: Robot[];
   notifications: Notification[];
   selectedEquipmentId: string | null;
   activeView: "map" | "planning" | "analytics";
+  maintenanceTasks: MaintenanceTask[]; // ← ДОБАВЛЯЕМ
 }
